@@ -1,0 +1,23 @@
+﻿# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual env
+venv/
+.venv/
+
+# Model / data berat
+*.pt
+snapshots/
+*.mp4
+*.avi
+
+# Config lokal
+.env
+desktop.ini
+
+# OS junk
+.DS_Store
+Thumbs.db
