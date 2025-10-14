@@ -1,0 +1,7 @@
+# dataset_box.yaml
+path: C:/Users/ALDRI/Documents/PROYEK/dataset_box
+train: images/train
+val: images/val
+
+nc: 1
+names: [kotak_infaq]  # nama kelas tunggal

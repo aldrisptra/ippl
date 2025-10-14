@@ -1,0 +1,5 @@
+﻿path: C:/Users/ALDRI/Documents/PROYEK/dataset_box
+train: images/train
+val: images/val
+names:
+  0: box

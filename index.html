@@ -2,7 +2,7 @@
 <html lang="id">
   <head>
     <meta charset="UTF-8" />
-    <title>Keamanan Kotak Infaq</title>
+    <title>Keamanan Kotak Infaq (Tanpa ROI)</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
       :root {
@@ -75,7 +75,7 @@
     </div>
 
     <aside>
-      <h2>Keamanan Kotak Infaq</h2>
+      <h2>Keamanan Kotak Infaq (Tanpa ROI)</h2>
       <p>Status: <span id="status" class="status">Inisialisasi…</span></p>
 
       <div class="row">
@@ -84,18 +84,6 @@
           title="Wajib diklik agar browser mengizinkan bunyi/TTS"
         >
           Aktifkan Audio
-        </button>
-        <button
-          id="btn-box"
-          title="Klik & drag di video untuk menandai area kotak"
-        >
-          Tandai ROI Kotak
-        </button>
-        <button
-          id="btn-zone"
-          title="Klik & drag di video untuk menandai area orang mendekat"
-        >
-          Tandai Zona Waspada
         </button>
       </div>
 
@@ -111,23 +99,14 @@
             style="width: 64px"
           />
         </label>
-        <button id="btn-reset" title="Reset background ROI di server">
-          Reset Background ROI
-        </button>
-      </div>
-
-      <div class="row">
-        <button id="btn-demo" title="Set ROI & Zona contoh untuk tes cepat">
-          Auto Set ROI & Zona (tes)
-        </button>
-        <button id="btn-clear" title="Hapus ROI & Zona yang tersimpan">
-          Hapus ROI/Zona
+        <button id="btn-reset" title="Reset history status di server">
+          Reset Status
         </button>
       </div>
 
       <p class="hint">
-        Tandai ROI tepat di kotak infaq, dan Zona Waspada di area orang bisa
-        menjangkau kotak. Atur FPS 5–8 untuk CPU.
+        Sistem akan menganggap NORMAL jika ada objek 'box' di mana pun pada
+        frame. Jika tidak ada selama beberapa frame → WARN/ALERT.
       </p>
       <p>Log:</p>
       <pre id="log"></pre>
@@ -145,12 +124,9 @@
       let ws,
         streaming = false,
         sendTimer = null;
-      let boxROI = null,
-        warnZone = null;
-      let currentTool = null; // 'box' | 'zone'
-      let drawing = null; // {type, x0, y0}
       let audioCtx = null;
-      let lastStatus = "INIT"; // untuk debounce TTS
+      let lastStatus = "INIT";
+      let dets = [];
 
       // ====== Util ======
       function log(s) {
@@ -161,22 +137,6 @@
         if (!video.videoWidth) return requestAnimationFrame(resizeCanvas);
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
-      }
-      function canvasToFrameXY(e) {
-        const r = canvas.getBoundingClientRect();
-        const sx = canvas.width / r.width,
-          sy = canvas.height / r.height;
-        return { x: (e.clientX - r.left) * sx, y: (e.clientY - r.top) * sy };
-      }
-      function rectFromPts(x0, y0, x1, y1) {
-        const x = Math.min(x0, x1),
-          y = Math.min(y0, y1);
-        return { x, y, w: Math.abs(x1 - x0), h: Math.abs(y1 - y0) };
-      }
-      function drawRect(r, color) {
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 3;
-        ctx.strokeRect(r.x, r.y, r.w, r.h);
       }
 
       // ====== Audio (WebAudio) ======
@@ -246,7 +206,7 @@
         } catch (e) {}
       }
 
-      // ====== Kamera (browser) ======
+      // ====== Kamera ======
       async function initCam() {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: true,
@@ -258,122 +218,39 @@
         requestAnimationFrame(drawOverlay);
         log("Kamera aktif.");
       }
+
       function drawOverlay() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        if (boxROI) drawRect(boxROI, "#00ff88");
-        if (warnZone) drawRect(warnZone, "#ffaa00");
+        // Gambar bbox deteksi
+        if (dets && dets.length) {
+          ctx.lineWidth = 2;
+          const stroke =
+            lastStatus === "ALERT"
+              ? "#c00"
+              : lastStatus === "WARN"
+              ? "#d80"
+              : "#33aaff";
+          dets.forEach((d) => {
+            ctx.strokeStyle = stroke;
+            ctx.strokeRect(d.x, d.y, d.w, d.h);
+            ctx.fillStyle = "rgba(0,0,0,0.5)";
+            ctx.fillRect(d.x, d.y - 18, 70, 18);
+            ctx.fillStyle = "#fff";
+            ctx.font = "12px system-ui";
+            ctx.fillText(`box ${d.conf}`, d.x + 4, d.y - 5);
+          });
+        }
         requestAnimationFrame(drawOverlay);
       }
 
-      // ====== Persist config (localStorage) ======
-      function persist() {
-        if (boxROI) localStorage.setItem("boxROI", JSON.stringify(boxROI));
-        if (warnZone)
-          localStorage.setItem("warnZone", JSON.stringify(warnZone));
-      }
-      try {
-        const savedBox = localStorage.getItem("boxROI");
-        const savedZone = localStorage.getItem("warnZone");
-        if (savedBox) boxROI = JSON.parse(savedBox);
-        if (savedZone) warnZone = JSON.parse(savedZone);
-        if (boxROI && warnZone) {
-          log("Config tersimpan dimuat.");
-          setTimeout(() => sendConfig(true), 600);
-        }
-      } catch (_) {}
-
       // ====== Tombol ======
       document.getElementById("btn-audio").onclick = () => initAudio();
-      document.getElementById("btn-box").onclick = () => {
-        currentTool = "box";
-        log("Mode: ROI Kotak. Klik & drag di video…");
-      };
-      document.getElementById("btn-zone").onclick = () => {
-        currentTool = "zone";
-        log("Mode: Zona Waspada. Klik & drag di video…");
-      };
       document.getElementById("btn-reset").onclick = () => {
-        if (!boxROI) {
-          log("Set ROI Kotak dulu.");
-          return;
-        }
         sendConfig(true);
-        log("Reset background ROI diminta.");
-      };
-      document.getElementById("btn-clear").onclick = () => {
-        boxROI = null;
-        warnZone = null;
-        localStorage.removeItem("boxROI");
-        localStorage.removeItem("warnZone");
-        log("ROI & Zona dihapus. Silakan tandai ulang.");
-        sendConfig(true);
-      };
-      document.getElementById("btn-demo").onclick = () => {
-        const W = canvas.width,
-          H = canvas.height;
-        if (!W || !H) {
-          log("Video belum siap. Coba lagi sebentar.");
-          return;
-        }
-        boxROI = {
-          x: Math.round(W * 0.33),
-          y: Math.round(H * 0.25),
-          w: Math.round(W * 0.34),
-          h: Math.round(H * 0.28),
-        };
-        warnZone = {
-          x: Math.round(W * 0.2),
-          y: Math.round(H * 0.6),
-          w: Math.round(W * 0.6),
-          h: Math.round(H * 0.3),
-        };
-        log("ROI Kotak diset. (auto)");
-        log("Zona Waspada diset. (auto)");
-        persist();
-        sendConfig(true);
+        log("Reset history status diminta.");
       };
 
-      // ====== Menggambar ROI/Zona ======
-      canvas.addEventListener("mousedown", (e) => {
-        if (!currentTool) {
-          log("Pilih tombol ROI Kotak atau Zona Waspada dulu.");
-          return;
-        }
-        const p = canvasToFrameXY(e);
-        drawing = { type: currentTool, x0: p.x, y0: p.y };
-      });
-      canvas.addEventListener("mousemove", (e) => {
-        if (!drawing) return;
-        const p = canvasToFrameXY(e);
-        const r = rectFromPts(drawing.x0, drawing.y0, p.x, p.y);
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        if (boxROI) drawRect(boxROI, "#00ff88");
-        if (warnZone) drawRect(warnZone, "#ffaa00");
-        drawRect(r, "#33aaff");
-      });
-      canvas.addEventListener("mouseup", (e) => {
-        if (!drawing) return;
-        const p = canvasToFrameXY(e);
-        const r = rectFromPts(drawing.x0, drawing.y0, p.x, p.y);
-        if (r.w > 5 && r.h > 5) {
-          if (drawing.type === "box") {
-            boxROI = r;
-            log("ROI Kotak diset.");
-            persist();
-          } else if (drawing.type === "zone") {
-            warnZone = r;
-            log("Zona Waspada diset.");
-            persist();
-          }
-          sendConfig(true);
-        } else {
-          log("Gambar terlalu kecil, coba ulang.");
-        }
-        drawing = null;
-        currentTool = null;
-      });
-
-      // ====== WebSocket ke backend ======
+      // ====== WebSocket ======
       function connectWS() {
         const url =
           (location.protocol === "https:" ? "wss" : "ws") +
@@ -384,7 +261,7 @@
         ws.onopen = () => {
           log("WS connected.");
           streaming = true;
-          sendConfig();
+          sendConfig(); // sekadar memberi tahu server (tidak pakai ROI)
           startSending();
         };
         ws.onmessage = (ev) => {
@@ -402,6 +279,7 @@
             if (msg.say && msg.status !== lastStatus) speak(msg.say);
             lastStatus = msg.status;
             if (msg.info) log(msg.info);
+            if (msg.dets) dets = msg.dets;
           } catch (e) {
             log("WS parse error");
           }
@@ -417,23 +295,10 @@
 
       function sendConfig(forceReset = false) {
         if (!ws || ws.readyState !== 1) return;
-        const roundRect = (r) =>
-          r
-            ? {
-                x: Math.round(r.x),
-                y: Math.round(r.y),
-                w: Math.round(r.w),
-                h: Math.round(r.h),
-              }
-            : null;
         ws.send(
           JSON.stringify({
             type: "config",
-            boxROI: roundRect(boxROI),
-            warnZone: roundRect(warnZone),
             reset: forceReset,
-            w: canvas.width,
-            h: canvas.height,
           })
         );
       }
