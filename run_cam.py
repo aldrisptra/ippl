@@ -20,9 +20,9 @@ YOLO_IMG_DEF     = int(os.getenv("YOLO_IMG",  "800"))
 MIN_AREA_RATIO   = float(os.getenv("MIN_AREA_RATIO", "0.01"))  # relative ke area ROI jika ROI aktif
 
 # Telegram (opsional)
-TG_TOKEN         = os.getenv("7697921487:AAEvZXLkC61Nzx-eh1e2BES1VfqSJ3wN32E", "")
-TG_CHAT_ID       = os.getenv("1215968232", "")
-TG_COOLDOWN_S    = int(os.getenv("TELEGRAM_COOLDOWN", "60"))
+TG_TOKEN         = os.getenv("tg_token", "7697921487:AAEvZXLkC61Nzx-eh1e2BES1VfqSJ3wN32E")
+TG_CHAT_ID       = os.getenv("tg_chat_id", "1215968232")
+TG_COOLDOWN_S    = int(os.getenv("tg_cooldown", "10"))
 
 ROI_JSON         = os.getenv("ROI_JSON", "roi.json")           # lokasi file ROI
 
@@ -243,7 +243,7 @@ def main():
         # bbox
         for (x1, y1, x2, y2, conf) in dets[:10]:
             cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 220, 0), 2)
-            cv2.putText(frame, f"box {conf:.2f}", (x1, max(0, y1 - 8)),
+            cv2.putText(frame, f"kotakinfaq {conf:.2f}", (x1, max(0, y1 - 8)),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 220, 0), 2, cv2.LINE_AA)
 
         # FPS
